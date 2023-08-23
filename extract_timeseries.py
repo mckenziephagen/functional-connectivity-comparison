@@ -8,10 +8,12 @@
 #       format_version: '1.5'
 #       jupytext_version: 1.14.6
 #   kernelspec:
-#     display_name: FC
+#     display_name: fc_w_datalad
 #     language: python
-#     name: fc
+#     name: env
 # ---
+
+import datalad
 
 # +
 import numpy as np
@@ -27,37 +29,67 @@ import nibabel as nib
 
 import argparse
 
+import nest_asyncio
+nest_asyncio.apply()
+
 import datalad.api as dl
-# -
+
 from glob import glob
 
 import os.path as op
+
 
 # +
 args = argparse.Namespace(verbose=False, verbose_1=False)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--subject_id',default='761957')           # positional argument
+parser.add_argument('--subject_id',default='100206') 
+parser.add_argument('--atlas', default='shaefer')
+parser.add_argument('--n_rois', default=100)
+parser.add_argument('--resolution_mm', default=1) #I don't remember where I got this #
+parser.add_argument('--yeo_networks', default=7)
+
 args = parser.parse_args([])
 subject_id = args.subject_id
+atlas = args.atlas
+n_rois = args.n_rois
+resolution_mm = args.resolution_mm
+yeo_networks = args.yeo_networks
+# -
+rest_scans = glob(op.join('/pscratch/sd/m/mphagen/hcp-functional-connectivity', 
+                         subject_id, 'MNINonLinear/Results/rfMRI*', '*clean.nii.gz'))
+
+#create pseudo-bids naming mapping dict
+#assuming that the RL was always run before LR
+bids_dict = {
+    'rfMRI_REST1_RL': 'ses-1_run-1',
+    'rfMRI_REST2_RL': 'ses-2_run-1',
+    'rfMRI_REST2_LR': 'ses-2_run-2',
+    'rfMRI_REST1_LR': 'ses-1_run-2' 
+}
+
 # +
-#glob(op.join('/pscratch/sd/m/mphagen/hcp-functional-connectivity', subject_id, 'MNINonLinear/Results/*/*nii.gz')) 
 
-data_files = glob(op.join('/pscratch/sd/m/mphagen/temp_data/*.nii.gz')) 
+#add elif here for other atlas choice
+if atlas == 'schaefer': 
+    schaefer = datasets.fetch_atlas_schaefer_2018(n_rois,yeo_networks,resolution_mm)
+    atlas = schaefer['maps']
 
-# +
-n_rois=100
-yeo_networks=7
-resolution_mm=1
+masker = NiftiLabelsMasker(labels_img=atlas, standardize='zscore_sample')
 
-schaefer = datasets.fetch_atlas_schaefer_2018(n_rois,yeo_networks,resolution_mm)
-atlas = schaefer['maps']
 # -
 
-data = nib.load(data_files[0])
-masker = NiftiLabelsMasker(labels_img=atlas, standardize='zscore_sample')
-time_series = masker.fit_transform(data)
+rest_scans
 
-time_series.tofile('test_timeseries.csv', sep = ',')
+dl.get(rest_scans[0], dataset='/pscratch/sd/m/mphagen/hcp-functional-connectivity')
+
+for ii in rest_scans: 
+    
+    data = nib.load(rest_scans[ii])
+    time_series = masker.fit_transform(data)
+    
+    
+    
+    time_series.tofile('test_timeseries.csv', sep = ',')
 
 
