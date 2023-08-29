@@ -13,8 +13,6 @@
 #     name: env
 # ---
 
-import datalad
-
 # +
 import numpy as np
 
@@ -29,35 +27,55 @@ import nibabel as nib
 
 import argparse
 
-import nest_asyncio
-nest_asyncio.apply()
-
 import datalad.api as dl
 
 from glob import glob
 
+import sys
+import os 
 import os.path as op
+# -
 
+
+#to access git-annex, add env bin to $PATH
+#add to jupyter kernel spec to get rid of this line
+os.environ["PATH"] = "/global/homes/m/mphagen/miniconda3/envs/fc_w_datalad/bin:" + os.environ["PATH"]
 
 # +
 args = argparse.Namespace(verbose=False, verbose_1=False)
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--subject_id',default='100206') 
-parser.add_argument('--atlas', default='shaefer')
+parser = argparse.ArgumentParser("extract_timeseries.py")
+parser.add_argument('--subject_id',  default='644246') 
+parser.add_argument('--atlas_name', default='shaefer')
 parser.add_argument('--n_rois', default=100)
 parser.add_argument('--resolution_mm', default=1) #I don't remember where I got this #
 parser.add_argument('--yeo_networks', default=7)
 
-args = parser.parse_args([])
+#hack argparse to be jupyter friendly AND cmdline compatible
+try: 
+    os.environ['_']
+    args = parser.parse_args()
+except KeyError: 
+    args = parser.parse_args([])
+
 subject_id = args.subject_id
-atlas = args.atlas
+atlas_name = args.atlas_name
 n_rois = args.n_rois
 resolution_mm = args.resolution_mm
 yeo_networks = args.yeo_networks
 # -
-rest_scans = glob(op.join('/pscratch/sd/m/mphagen/hcp-functional-connectivity', 
+print(args)
+
+# +
+fc_data_path = '/pscratch/sd/m/mphagen/hcp-functional-connectivity'
+results_path = op.join(fc_data_path, 'derivatives', f'fc_{atlas_name}-{n_rois}', f'sub-{subject_id}')
+os.makedirs(results_path, exist_ok=True)
+
+rest_scans = glob(op.join(fc_data_path, 
                          subject_id, 'MNINonLinear/Results/rfMRI*', '*clean.nii.gz'))
+
+print(f"Found {len(rest_scans)} rest scans for subject {subject_id}") 
+# -
 
 #create pseudo-bids naming mapping dict
 #assuming that the RL was always run before LR
@@ -69,27 +87,36 @@ bids_dict = {
 }
 
 # +
-
 #add elif here for other atlas choice
-if atlas == 'schaefer': 
+if atlas_name == 'shaefer': 
     schaefer = datasets.fetch_atlas_schaefer_2018(n_rois,yeo_networks,resolution_mm)
     atlas = schaefer['maps']
 
 masker = NiftiLabelsMasker(labels_img=atlas, standardize='zscore_sample')
 
+
 # -
 
-rest_scans
-
-dl.get(rest_scans[0], dataset='/pscratch/sd/m/mphagen/hcp-functional-connectivity')
-
-for ii in rest_scans: 
+def calculate_fc(file_path): 
     
-    data = nib.load(rest_scans[ii])
+    try: 
+        ses_string = bids_dict[file.split('/')[-2]]
+    except KeyError: 
+        return
+        
+    dl.get(file, dataset='/pscratch/sd/m/mphagen/hcp-functional-connectivity')
+    
+    data = nib.load(file)
+    
     time_series = masker.fit_transform(data)
     
+    dl.drop(file, dataset='/pscratch/sd/m/mphagen/hcp-functional-connectivity')
     
-    
-    time_series.tofile('test_timeseries.csv', sep = ',')
+    os.makedirs(op.join(results_path, ses_string), exist_ok=True)
+    time_series.tofile(op.join(results_path, ses_string, 
+                               f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_timeseries.csv'), 
+                        sep = ',')
 
 
+for file in rest_scans: 
+    calculate_fc(file)  
