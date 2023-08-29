@@ -63,9 +63,8 @@ atlas_name = args.atlas_name
 n_rois = args.n_rois
 resolution_mm = args.resolution_mm
 yeo_networks = args.yeo_networks
-# -
-print(args)
 
+print(args)
 # +
 fc_data_path = '/pscratch/sd/m/mphagen/hcp-functional-connectivity'
 results_path = op.join(fc_data_path, 'derivatives', f'fc_{atlas_name}-{n_rois}', f'sub-{subject_id}')
@@ -97,7 +96,7 @@ masker = NiftiLabelsMasker(labels_img=atlas, standardize='zscore_sample')
 
 # -
 
-def calculate_fc(file_path): 
+def parcellate_data(file_path): 
     
     try: 
         ses_string = bids_dict[file.split('/')[-2]]
@@ -119,4 +118,4 @@ def calculate_fc(file_path):
 
 
 for file in rest_scans: 
-    calculate_fc(file)  
+    parcellate_data(file)  
