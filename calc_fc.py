@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.14.6
+#       jupytext_version: 1.15.2
 #   kernelspec:
 #     display_name: FC
 #     language: python
@@ -21,6 +21,7 @@ from nilearn.connectome import ConnectivityMeasure
 
 from mpi4py import MPI
 
+import pyuoi
 from pyuoi.linear_model import UoI_Lasso
 from pyuoi.utils import log_likelihood_glm, AIC, BIC
 
@@ -39,7 +40,7 @@ from glob import glob
 
 from sklearn.model_selection import KFold
 from sklearn.metrics import r2_score
-from sklearn.linear_model import LassoCV, RidgeCV
+from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV, LassoLarsCV
 
 import pickle
 
@@ -48,11 +49,11 @@ args = argparse.Namespace()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--subject_id',default='205220') 
-parser.add_argument('--atlas_name', default='shaefer')
+parser.add_argument('--atlas_name', default='schaefer')
 parser.add_argument('--n_rois', default=100) #default = hcp
 parser.add_argument('--n_trs', default=1200) #default = hcp
 parser.add_argument('--n_folds', default=5) 
-parser.add_argument('--model', default='correlation') 
+parser.add_argument('--model', default='lasso-bic') 
 
 
 #hack argparse to be jupyter friendly AND cmdline compatible
@@ -73,7 +74,7 @@ print(args)
 # +
 fc_data_path = '/pscratch/sd/m/mphagen/hcp-functional-connectivity'
 
-ts_files = glob(op.join(fc_data_path, 'derivatives', f'fc_{atlas_name}-{n_rois}', f'sub-{subject_id}', '*', '*.csv'))
+ts_files = glob(op.join(fc_data_path, 'derivatives', f'fc_{atlas_name}-{n_rois}_timeseries', f'sub-{subject_id}', '*', '*.csv'))
 results_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_{atlas_name}-{n_rois}', f'sub-{subject_id}')
 
 os.makedirs(results_path, exist_ok=True)
@@ -88,12 +89,11 @@ op.join(fc_data_path, 'derivatives', f'fc_{atlas_name}-{n_rois}', f'sub-{subject
 random_state =1 
 
 # +
-if model_str == 'uoi_lasso': 
+if model_str == 'uoi-lasso': 
     uoi_lasso = UoI_Lasso(estimation_score="BIC")
 
     comm = MPI.COMM_WORLD
-    rank = comm.rank
-
+    
     uoi_lasso.copy_X = True
     uoi_lasso.estimation_target = None
     uoi_lasso.logger = None
@@ -104,25 +104,39 @@ if model_str == 'uoi_lasso':
     
     model = uoi_lasso
 
-elif model_str == 'lasso': 
+elif model_str == 'lasso-cv': 
     lasso = LassoCV(fit_intercept = True,
                     cv = 5, 
                     n_jobs=-1, 
                     max_iter=2000)
     
     model = lasso
-
+    
+elif model_str == 'lasso-bic': 
+    lasso = LassoLarsCV(fit_intercept = True,#change this to LarsLasso
+                    cv = 5, 
+                    n_jobs=-1, 
+                    max_iter=2000)
+    
+    model = lasso
+    
+elif model_str == 'enet':
+    enet = ElasticNetCV(fit_intercept = True,
+                    cv = 5, 
+                    n_jobs=-1, 
+                    max_iter=2000)
+    model = enet
+    
 elif model_str in ['correlation', 'tangent']: 
     model = ConnectivityMeasure(
-        kind=model_str)
-    
-    
+            kind=model_str)
+
+
 # -
 
 print(model)
 
 
-# +
 def calc_fc(train_ts, test_ts, n_rois, model, **kwargs): 
     assert train_ts.shape[1] == n_rois == test_ts.shape[1]
     fc_mat = np.zeros((n_rois,n_rois))
@@ -150,9 +164,7 @@ def calc_fc(train_ts, test_ts, n_rois, model, **kwargs):
       #  print(test_rsq)
 
     return(fc_mat, inner_rsq_dict)
-       
-        
-# -
+
 
 def eval_metrics(X_train, y_train, X_test, y_test, model):
     
@@ -164,12 +176,12 @@ def eval_metrics(X_train, y_train, X_test, y_test, model):
 
 
 #iterate over each scan for a subject
-for file in ts_files[:2]: 
+for file in ts_files: 
     time_series = np.loadtxt(file, delimiter=',').reshape(n_trs, n_rois)
-    ses_string = ts_files[1].split('/')[-2]
-    print(f"Calculating FC for {ses_string}")
+    ses_string = file.split('/')[-2]
     
-    if model_str in ["lasso", "uoi_lasso"] :
+    if model_str in ["lasso", "uoi-lasso", "enet", "lasso-bic"] :
+        print(f"Calculating {model_str} FC for {ses_string}")
 
         kfolds = KFold(
             n_splits=n_folds,
@@ -190,13 +202,17 @@ for file in ts_files[:2]:
 
             print(time.time() - start_time, ' seconds') 
 
-        mat_file = f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_{ses_string}_fc-{model_str}.pkl'
+        mat_file = f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_{ses_string}_fc-{model_str}_model.pkl'
         with open(op.join(results_path,mat_file), 'wb') as f:
-            pickle.dump(fc_mats, f) 
+            pickle.dump(fc_mats, f)
+        with open(op.join(results_path, f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_{ses_string}_fc-{model_str}_r2.pkl'), 
+                  'wb') as f: 
+            pickle.dump(rsq_dict, f)
             
     elif model_str in ['correlation', 'tangent']: 
-    
-        corr_mat = correlation_measure.fit_transform([time_series])[0]
+        print(f"Calculating {model_str} FC for {ses_string}")
+
+        corr_mat = model.fit_transform([time_series])[0]
         np.fill_diagonal(corr_mat, 0)
     
         mat_file = f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_{ses_string}_fc-{model_str}.pkl'
