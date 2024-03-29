@@ -19,6 +19,7 @@ import pickle
 import numpy as np
 import datetime
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # +
 fc_data_path = '/pscratch/sd/m/mphagen/hcp-functional-connectivity'
@@ -29,9 +30,13 @@ lasso_results_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_schaefer
 uoi_results_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_schaefer*', '*', '*uoi-*model*')
 # -
 
+uoi_r2_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_schaefer*', '*', '*uoi-*r2*')
+
 pearson_results_files = glob(pearson_results_path) 
 lasso_result_files = glob(lasso_results_path)
 pyuoi_result_files = glob(uoi_results_path) 
+
+pyuoi_r2_files = glob(uoi_r2_path)
 
 len(pearson_results_files)
 
@@ -104,11 +109,13 @@ for outer in lasso_dict.keys():
         lasso_icc_df = pd.concat([lasso_icc_df, temp_df])
 lasso_icc_df.to_csv('lasso_icc_df.csv')
 
+uoi_dict[outer][inner].shape
+
 # +
 uoi_icc_df = pd.DataFrame(columns=['values', 'ses', 'sub'] )
 for outer in uoi_dict.keys():
     for inner in uoi_dict[outer].keys():
-        temp_df = pd.DataFrame(data = {'values': uoi_dict[outer][inner][32], 
+        temp_df = pd.DataFrame(data = {'values': uoi_dict[outer][inner].ravel(), 
                                'sub':  outer, 
                               'ses': inner})
         uoi_icc_df = pd.concat([uoi_icc_df, temp_df])
@@ -118,20 +125,22 @@ uoi_icc_df.to_csv('uoi_icc_df.csv')
 
 len(uoi_dict)
 
-len(lasso_dict)
+lasso_dict.keys() 
 
 len(pearson_dict)
 
-uoi_dict.keys()
+r2_mean_list = []
+for i in pyuoi_r2_files: 
+    with open(i, 'rb') as f:
+         mat = pickle.load(f)  
+    r2_df = pd.json_normalize(mat).filter(like='test')
+    
+    r2_mean_list.append(np.mean(r2_df.explode(list(r2_df.columns))))
 
-pearson_dict.keys()
+#I shoudl investigate those lower ones and cut them
+plt.hist(r2_mean_list)
+plt.title('Average Union of Intersections Model Accuracy Per Scan') 
 
-lasso_dict.keys() 
-
-uoi_dict.values()
-
-
-
-
+plt.hist(np.mean(r2_df.explode(list(r2_df.columns)), axis=1))
 
 
