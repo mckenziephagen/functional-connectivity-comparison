@@ -27,8 +27,6 @@ from pyuoi.utils import log_likelihood_glm, AIC, BIC
 
 import numpy as np
 
-from sklearn.metrics import r2_score
-
 import matplotlib.pyplot as plt
 
 import argparse
@@ -40,7 +38,8 @@ from glob import glob
 
 from sklearn.model_selection import KFold
 from sklearn.metrics import r2_score
-from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV, LassoLarsCV
+from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV, LassoLarsIC
+from sklearn.preprocessing import StandardScaler
 
 import pickle
 
@@ -113,10 +112,9 @@ elif model_str == 'lasso-cv':
     model = lasso
     
 elif model_str == 'lasso-bic': 
-    lasso = LassoLarsCV(fit_intercept = True,#change this to LarsLasso
-                    cv = 5, 
-                    n_jobs=-1, 
-                    max_iter=2000)
+    lasso = LassoLarsIC(criterion='bic',
+                            fit_intercept = True,
+                            max_iter=2000)
     
     model = lasso
     
@@ -150,9 +148,10 @@ def calc_fc(train_ts, test_ts, n_rois, model, **kwargs):
         y_train = np.array(train_ts[:,target_idx])
         X_train = np.delete(train_ts, target_idx, axis=1) 
 
+        
         y_test = np.array(test_ts[:,target_idx])
         X_test = np.delete(test_ts, target_idx, axis=1)
-
+        
         model.fit(X=X_train, y=y_train)
 
         fc_mat[target_idx,:] = np.insert(model.coef_, target_idx, 0) 
@@ -163,7 +162,7 @@ def calc_fc(train_ts, test_ts, n_rois, model, **kwargs):
 
       #  print(test_rsq)
 
-    return(fc_mat, inner_rsq_dict)
+    return(fc_mat, inner_rsq_dict, model)
 
 
 def eval_metrics(X_train, y_train, X_test, y_test, model):
@@ -196,9 +195,16 @@ for file in ts_files:
 
             train_ts = time_series[train_idx, :]
             test_ts = time_series[test_idx, :]
+            
+            scaler = StandardScaler()
+            scaler.fit_transform(train_ts)
+            scaler.transform(test_ts)
 
             start_time = time.time()
-            fc_mats[fold_idx], rsq_dict[fold_idx] = calc_fc(train_ts, test_ts, n_rois, model=model)
+            fc_mats[fold_idx], rsq_dict[fold_idx], tst_model = calc_fc(train_ts, 
+                                                                       test_ts, 
+                                                                       n_rois, 
+                                                                       model=model)
 
             print(time.time() - start_time, ' seconds') 
 
@@ -219,3 +225,5 @@ for file in ts_files:
 
         with open(op.join(results_path,mat_file), 'wb') as f:
             pickle.dump(corr_mat, f) 
+
+

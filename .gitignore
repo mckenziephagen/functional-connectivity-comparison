@@ -1,1 +1,5 @@
-*.ipynb
+*.ipynb*
+Sylvia_code/
+*log*
+results/*
+Data/
