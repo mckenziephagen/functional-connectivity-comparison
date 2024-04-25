@@ -49,10 +49,13 @@ args = argparse.Namespace()
 parser = argparse.ArgumentParser()
 parser.add_argument('--subject_id',default='205220') 
 parser.add_argument('--atlas_name', default='schaefer')
-parser.add_argument('--n_rois', default=100) #default = hcp
-parser.add_argument('--n_trs', default=1200) #default = hcp
+parser.add_argument('--n_rois', default=100) #default for hcp
+parser.add_argument('--n_trs', default=1200) #default for hcp
 parser.add_argument('--n_folds', default=5) 
 parser.add_argument('--model', default='lasso-bic') 
+parser.add_argument('--fc_data_path', 
+                    default='/pscratch/sd/m/mphagen/hcp-functional-connectivity') 
+
 
 
 #hack argparse to be jupyter friendly AND cmdline compatible
@@ -64,17 +67,17 @@ except KeyError:
     
 subject_id = args.subject_id
 atlas_name = args.atlas_name
-n_rois = args.n_rois
-n_trs = args.n_trs
+n_rois = int(args.n_rois)
+n_trs = int(args.n_trs)
 n_folds = args.n_folds
 model_str = args.model
+fc_data_path = args.fc_data_path
 print(args)
 
 # +
-fc_data_path = '/pscratch/sd/m/mphagen/hcp-functional-connectivity'
 
-ts_files = glob(op.join(fc_data_path, 'derivatives', f'fc_{atlas_name}-{n_rois}_timeseries', f'sub-{subject_id}', '*', '*.csv'))
-results_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_{atlas_name}-{n_rois}', f'sub-{subject_id}')
+ts_files = glob(op.join(fc_data_path, 'derivatives', f'fc_{atlas_name}-{n_rois}_timeseries', f'{subject_id}', '*.csv'))
+results_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_{atlas_name}-{n_rois}', f'sub-{subject_id}', model_str)
 
 os.makedirs(results_path, exist_ok=True)
 
@@ -82,8 +85,6 @@ print(f"Found {len(ts_files)} rest scans for subject {subject_id}.")
 
 print(f"Saving results to {results_path}.")
 # -
-
-op.join(fc_data_path, 'derivatives', f'fc_{atlas_name}-{n_rois}', f'sub-{subject_id}', '*.csv')
 
 random_state =1 
 
@@ -113,16 +114,16 @@ elif model_str == 'lasso-cv':
     
 elif model_str == 'lasso-bic': 
     lasso = LassoLarsIC(criterion='bic',
-                            fit_intercept = True,
-                            max_iter=2000)
+                        fit_intercept = True,
+                        max_iter=2000)
     
     model = lasso
     
 elif model_str == 'enet':
     enet = ElasticNetCV(fit_intercept = True,
-                    cv = 5, 
-                    n_jobs=-1, 
-                    max_iter=2000)
+                        cv = 5, 
+                        n_jobs=-1, 
+                        max_iter=2000)
     model = enet
     
 elif model_str in ['correlation', 'tangent']: 
@@ -175,11 +176,16 @@ def eval_metrics(X_train, y_train, X_test, y_test, model):
 
 
 #iterate over each scan for a subject
-for file in ts_files: 
-    time_series = np.loadtxt(file, delimiter=',').reshape(n_trs, n_rois)
+for file in ts_files:   
     ses_string = file.split('/')[-2]
+    print(ses_string)
+    if  'run-combined' in ses_string:        
+        time_series = np.loadtxt(file, delimiter=',').reshape(2400, 100)
     
-    if model_str in ["lasso", "uoi-lasso", "enet", "lasso-bic"] :
+    else: 
+        time_series = np.loadtxt(file, delimiter=',').reshape(n_trs, n_rois)
+
+    if model_str in ["lasso-cv", "uoi-lasso", "enet", "lasso-bic"] :
         print(f"Calculating {model_str} FC for {ses_string}")
 
         kfolds = KFold(
@@ -225,5 +231,3 @@ for file in ts_files:
 
         with open(op.join(results_path,mat_file), 'wb') as f:
             pickle.dump(corr_mat, f) 
-
-
