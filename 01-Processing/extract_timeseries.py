@@ -46,7 +46,7 @@ args = argparse.Namespace(verbose=False, verbose_1=False)
 
 parser = argparse.ArgumentParser("extract_timeseries.py")
 parser.add_argument('--subject_id',  default='117728') 
-parser.add_argument('--atlas_name', default='shaefer')
+parser.add_argument('--atlas_name', default='schaefer')
 parser.add_argument('--n_rois', default=100)
 parser.add_argument('--resolution_mm', default=1) #I don't remember where I got this #
 parser.add_argument('--yeo_networks', default=7)
@@ -88,7 +88,7 @@ bids_dict = {
 
 # +
 #add elif here for other atlas choice
-if atlas_name == 'shaefer': 
+if atlas_name == 'schaefer': 
     schaefer = datasets.fetch_atlas_schaefer_2018(n_rois,yeo_networks,resolution_mm)
     atlas = schaefer['maps']
 
