@@ -13,6 +13,9 @@
 #     name: fc
 # ---
 
+# Takes output from `calc_fc.py` and organizes it into useable dataframes and dictionaries for downstream analyses. 
+
+import os
 import os.path as op
 from glob import glob
 import pickle
@@ -20,12 +23,36 @@ import numpy as np
 import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
+import argparse
+
+date_str = str(datetime.date.today())
 
 # +
-fc_data_path = '/pscratch/sd/m/mphagen/hcp-functional-connectivity'
-organized_result_files = '/global/homes/m/mphagen/functional_connectivity_comparison/results'
+args = argparse.Namespace()
 
-data_str = str(datetime.date.today())
+parser = argparse.ArgumentParser()
+parser.add_argument('--model', default='lasso-bic') 
+parser.add_argument('--fc_data_path', 
+                    default='/pscratch/sd/m/mphagen/ds000228-fmriprep') 
+
+
+#hack argparse to be jupyter friendly AND cmdline compatible
+try: 
+    os.environ['_']
+    args = parser.parse_args()
+except KeyError: 
+    args = parser.parse_args([])
+
+model_str = args.model
+fc_data_path = args.fc_data_path
+
+# +
+organized_result_path = op.join(fc_data_path, 
+                                'results', 
+                                date_str)
+
+os.makedirs(organized_result_path,exist_ok=True) 
+
 
 fc_matrices_path = op.join(fc_data_path, 
                            'derivatives', 
@@ -43,7 +70,6 @@ lasso_model_path = op.join(fc_matrices_path,
 uoi_model_path = op.join(fc_matrices_path, 
                            '*',
                            '*fc-uoi-lasso_model.pkl')
-
 # +
 uoi_r2_path = op.join(fc_matrices_path,
                        '*', 
@@ -61,7 +87,7 @@ uoi_model_files = glob(uoi_model_path)
 
 print(len(pearson_files)) 
 print(len(lasso_model_files)) 
-print(len(pyuoi_model_files)) 
+print(len(uoi_model_files)) 
 
 uoi_r2_files = glob(uoi_r2_path)
 lasso_r2_files = glob(lasso_r2_path)
@@ -89,51 +115,75 @@ def unpack_model_results(result_files, result_string):
                                         np.median(np.array([*mat.values()]), 
                                                   axis=0)})
 
-        with open(op.join(organized_result_files,
-                          f'{data_str}_{result_string}_dict.pkl'), 'wb') as f:
+        with open(op.join(organized_result_path,
+                          f'{result_string}_dict.pkl'), 'wb') as f:
             pickle.dump(result_dict, f)
             
     return(result_dict) 
 
 
+# write dictionaries of results into pkls
+
 lasso_dict = unpack_model_results(lasso_model_files, 'lasso-bic') 
-
 uoi_dict = unpack_model_results(uoi_model_files, 'uoi') 
-
 pearson_dict = unpack_model_results(pearson_files, 'pearson') 
 
-pearson_dict.values() 
+# write dataframes for reliability analyses (this can be a function). 
 
-pearson_icc_df = pd.DataFrame(columns=['values', 'ses', 'sub', 'pos'] )
-for outer in pearson_dict.keys():
-    for inner in pearson_dict[outer].keys():
-        temp_df = pd.DataFrame(data = {'values': pearson_dict[outer][inner].ravel(), 
-                                       'sub':  outer, 
-                                       'ses': inner, 
-                                       'pos': list(range(1,10001,1))})
+pearson_icc_df = pd.DataFrame(columns=['values', 'ses', 
+                                       'sub', 'pos'] )
+for sub in pearson_dict.keys():
+    for ses in pearson_dict[sub].keys():
+        temp_df = pd.DataFrame(data = 
+                      {'values': pearson_dict[sub][ses].ravel(), 
+                       'sub':  sub, 
+                       'ses': ses, 
+                       'pos': list(range(1,10001,1))})
         pearson_icc_df = pd.concat([pearson_icc_df, temp_df])
-pearson_icc_df.to_csv(op.join(organized_result_path, 'pearson_icc_df.csv'))
+pearson_icc_df.to_csv(op.join(organized_result_path, 
+                              'pearson_icc_df.csv'))
 
-lasso_icc_df = pd.DataFrame(columns=['values', 'ses', 'sub', 'pos'] )
-for outer in lasso_dict.keys():
-    for inner in lasso_dict[outer].keys():
-        temp_df = pd.DataFrame(data = {'values': lasso_dict[outer][inner].ravel(), 
-                               'sub':  outer, 
-                              'ses': inner, 
-                              'pos': list(range(1,10001,1))})
+lasso_icc_df = pd.DataFrame(columns=['values', 'ses', 
+                                     'sub', 'pos'] )
+for sub in lasso_dict.keys():
+    for ses in lasso_dict[sub].keys():
+        temp_df = pd.DataFrame(data = 
+                   {'values': lasso_dict[sub][ses].ravel(), 
+                    'sub':  sub, 
+                    'ses': ses, 
+                    'pos': list(range(1,10001,1))})
         lasso_icc_df = pd.concat([lasso_icc_df, temp_df])
-lasso_icc_df.to_csv('lasso_icc_df.csv')
+lasso_icc_df.to_csv(op.join(organized_result_path, 
+                            'lasso_icc_df.csv'))
+
+lasso_icc_df.loc[:, ['values', 'sub']].pivot(columns='sub').T
+
+lasso_icc_df.loc[,[].pivot(columns='sub').T
 
 # +
-uoi_icc_df = pd.DataFrame(columns=['values', 'ses', 'sub'] )
-for outer in uoi_dict.keys():
-    for inner in uoi_dict[outer].keys():
-        temp_df = pd.DataFrame(data = {'values': uoi_dict[outer][inner].ravel(), 
-                               'sub':  outer, 
-                              'ses': inner})
+uoi_icc_df = pd.DataFrame(columns=['values', 'ses', 
+                                   'sub', 'pos'] )
+for sub in uoi_dict.keys():
+    for ses in uoi_dict[sub].keys():
+        temp_df = pd.DataFrame(data = {
+                         'values': uoi_dict[sub][ses].ravel(), 
+                         'sub':  sub, 
+                         'ses': ses, 
+                         'pos': list(range(1,10001,1))})
+        
         uoi_icc_df = pd.concat([uoi_icc_df, temp_df])
         
-uoi_icc_df.to_csv('uoi_icc_df.csv')
+uoi_icc_df.to_csv(op.join(organized_result_path, 
+                          'uoi_icc_df.csv'))
+# -
+
+# make wide format for R prediction code
+
+# +
+# make "wide" data here
+# -
+
+# pull out r2 values
 
 # +
 r2_lasso = []
@@ -163,7 +213,5 @@ plt.title('Histogram of UoI and Lasso Accuracies')
 #I shoudl investigate those lower ones and cut them
 plt.hist(r2_mean_list)
 plt.title('Average Union of Intersections Model Accuracy Per Scan') 
-
-plt.hist(np.mean(r2_df.explode(list(r2_df.columns)), axis=1))
 
 

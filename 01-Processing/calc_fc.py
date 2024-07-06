@@ -40,8 +40,11 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import r2_score
 from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV, LassoLarsIC
 from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+
 
 import pickle
+import pandas as pd
 
 # +
 args = argparse.Namespace()
@@ -52,10 +55,10 @@ parser.add_argument('--atlas_name', default='schaefer')
 parser.add_argument('--n_rois', default=100) #default for hcp
 parser.add_argument('--n_trs', default=1200) #default for hcp
 parser.add_argument('--n_folds', default=5) 
-parser.add_argument('--model', default='lasso-bic') 
+parser.add_argument('--model', default='lassoBIC') 
 parser.add_argument('--fc_data_path', 
                     default='/pscratch/sd/m/mphagen/hcp-functional-connectivity') 
-
+parser.add_argument('--task', default='rest') 
 
 
 #hack argparse to be jupyter friendly AND cmdline compatible
@@ -72,16 +75,25 @@ n_trs = int(args.n_trs)
 n_folds = args.n_folds
 model_str = args.model
 fc_data_path = args.fc_data_path
+task = args.task
 print(args)
 
 # +
+ts_files = glob(op.join(fc_data_path, 
+                        'derivatives', 
+                        f'timeseries_{atlas_name}-{n_rois}', 
+                        f'sub-{subject_id}', 'ses-*', '*.csv'))
 
-ts_files = glob(op.join(fc_data_path, 'derivatives', f'fc_{atlas_name}-{n_rois}_timeseries', f'{subject_id}', '*.csv'))
-results_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_{atlas_name}-{n_rois}', f'sub-{subject_id}', model_str)
+
+results_path = op.join(fc_data_path, 
+                        'derivatives', 
+                        f'connectivity-{model_str}',
+                        f'sub-{subject_id}', 
+                        'func')
 
 os.makedirs(results_path, exist_ok=True)
 
-print(f"Found {len(ts_files)} rest scans for subject {subject_id}.") 
+print(f"Found {len(ts_files)} {task} scans for subject {subject_id}.") 
 
 print(f"Saving results to {results_path}.")
 # -
@@ -89,7 +101,7 @@ print(f"Saving results to {results_path}.")
 random_state =1 
 
 # +
-if model_str == 'uoi-lasso': 
+if model_str == 'uoiLasso': 
     uoi_lasso = UoI_Lasso(estimation_score="BIC")
 
     comm = MPI.COMM_WORLD
@@ -104,7 +116,7 @@ if model_str == 'uoi-lasso':
     
     model = uoi_lasso
 
-elif model_str == 'lasso-cv': 
+elif model_str == 'lassoCV': 
     lasso = LassoCV(fit_intercept = True,
                     cv = 5, 
                     n_jobs=-1, 
@@ -112,14 +124,14 @@ elif model_str == 'lasso-cv':
     
     model = lasso
     
-elif model_str == 'lasso-bic': 
+elif model_str == 'lassoBIC': 
     lasso = LassoLarsIC(criterion='bic',
                         fit_intercept = True,
                         max_iter=2000)
     
     model = lasso
     
-elif model_str == 'enet':
+elif model_str == 'eNetCV':
     enet = ElasticNetCV(fit_intercept = True,
                         cv = 5, 
                         n_jobs=-1, 
@@ -132,9 +144,6 @@ elif model_str in ['correlation', 'tangent']:
 
 
 # -
-
-print(model)
-
 
 def calc_fc(train_ts, test_ts, n_rois, model, **kwargs): 
     assert train_ts.shape[1] == n_rois == test_ts.shape[1]
@@ -155,18 +164,18 @@ def calc_fc(train_ts, test_ts, n_rois, model, **kwargs):
         
         model.fit(X=X_train, y=y_train)
 
-        fc_mat[target_idx,:] = np.insert(model.coef_, target_idx, 0) 
-        test_rsq, train_rsq = eval_metrics(X_train, y_train, X_test, y_test, model)
+        fc_mat[target_idx,:] = np.insert(model._final_estimator.coef_, target_idx, 1) 
+        test_rsq, train_rsq = eval_metrics(X_train, y_train, 
+                                           X_test, y_test, model)
 
         inner_rsq_dict['test'].append(test_rsq)
         inner_rsq_dict['train'].append(train_rsq)
 
-      #  print(test_rsq)
-
     return(fc_mat, inner_rsq_dict, model)
 
 
-def eval_metrics(X_train, y_train, X_test, y_test, model):
+def eval_metrics(X_train, y_train,
+                 X_test, y_test, model):
     
     test_rsq = r2_score(y_test, model.predict(X_test))
     
@@ -175,17 +184,34 @@ def eval_metrics(X_train, y_train, X_test, y_test, model):
     return(test_rsq, train_rsq)
 
 
+# +
+def write_metadata(rsq_dict, atlas_name, n_rois, file_name): 
+    atlas_lookup = {'schaefer': 'Schaefer_100_Yeo_17'}
+
+    pd.DataFrame({"index": np.arange(0,n_rois),
+             "node_file": atlas_lookup[atlas_name], 
+              "node_file_index": np.arange(0,n_rois), 
+              "model_accuracy_test": rsq_dict[fold_idx]['test'], 
+              "model_accuracy_train": rsq_dict[fold_idx]['train']}).to_csv(
+        node_idx_file, sep='\t')
+
+
+# -
+
+import warnings
+warnings.simplefilter("ignore")
 #iterate over each scan for a subject
 for file in ts_files:   
     ses_string = file.split('/')[-2]
-    print(ses_string)
+    bids_str = f'sub-{subject_id}_{ses_string}_task-{task}_meas-{model_str}'
+
     if  'run-combined' in ses_string:        
-        time_series = np.loadtxt(file, delimiter=',').reshape(2400, 100)
+        time_series = np.loadtxt(file, delimiter=',').reshape(2*n_trs, n_rois)
     
     else: 
         time_series = np.loadtxt(file, delimiter=',').reshape(n_trs, n_rois)
 
-    if model_str in ["lasso-cv", "uoi-lasso", "enet", "lasso-bic"] :
+    if model_str in ["lassoCV", "uoiLasso", "eNetCV", "lassoBIC"] :
         print(f"Calculating {model_str} FC for {ses_string}")
 
         kfolds = KFold(
@@ -193,41 +219,45 @@ for file in ts_files:
             shuffle=True,
             random_state=random_state)
 
-        fc_mats = {}
-        rsq_dict = {}
+        rel_mats = np.zeros((n_rois,n_rois, n_folds))
 
-        for fold_idx, (train_idx, test_idx) in enumerate( kfolds.split(X=time_series) ): 
+        rsq_dict = {} 
+        for fold_idx, (train_idx, test_idx) in enumerate( 
+                                        kfolds.split(X=time_series) ): 
             print(fold_idx)
 
             train_ts = time_series[train_idx, :]
             test_ts = time_series[test_idx, :]
             
-            scaler = StandardScaler()
-            scaler.fit_transform(train_ts)
-            scaler.transform(test_ts)
+            model = make_pipeline(StandardScaler(with_mean=False), 
+                                  LassoLarsIC())
 
             start_time = time.time()
-            fc_mats[fold_idx], rsq_dict[fold_idx], tst_model = calc_fc(train_ts, 
-                                                                       test_ts, 
-                                                                       n_rois, 
-                                                                       model=model)
-
+            
+            rel_mats[:,:, fold_idx], rsq_dict[fold_idx], fit_model = calc_fc(
+                train_ts, test_ts, n_rois, model=model)
+            
             print(time.time() - start_time, ' seconds') 
 
-        mat_file = f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_{ses_string}_fc-{model_str}_model.pkl'
-        with open(op.join(results_path,mat_file), 'wb') as f:
-            pickle.dump(fc_mats, f)
-        with open(op.join(results_path, f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_{ses_string}_fc-{model_str}_r2.pkl'), 
-                  'wb') as f: 
-            pickle.dump(rsq_dict, f)
-            
+            relmat_file = f'{bids_str}_desc-fold{fold_idx}_relmat.dense.tsv'
+            node_idx_file = f'{bids_str}_desc-fold{fold_idx}_nodeindices.tsv'
+        
+            os.makedirs(op.join(results_path, ses_string[0:5]), exist_ok=True)
+            np.savetxt(op.join(results_path, ses_string[0:5], relmat_file),
+                       rel_mats[:,:, fold_idx], delimiter='\t')
+                
+            write_metadata(rsq_dict, atlas_name, n_rois, node_idx_file)
+                        
     elif model_str in ['correlation', 'tangent']: 
         print(f"Calculating {model_str} FC for {ses_string}")
-
+        
+        relmat_file = f'{bids_str}_relmat.dense.tsv'
+        node_idx_file = f'{bids_str}_nodeindices.tsv'
+        
         corr_mat = model.fit_transform([time_series])[0]
-        np.fill_diagonal(corr_mat, 0)
-    
-        mat_file = f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_{ses_string}_fc-{model_str}.pkl'
+        np.fill_diagonal(corr_mat, 1)
+        
+        np.savetxt(op.join(results_path, relmat_file),
+                       corr_mat, delimiter='\t')
 
-        with open(op.join(results_path,mat_file), 'wb') as f:
-            pickle.dump(corr_mat, f) 
+
