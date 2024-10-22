@@ -83,7 +83,7 @@ def create_df(mat_dict, ses_string, rms='absolute'):
         
     df = df.T.join([qa_df[[f'{rms}_{ses_string}']], 
                      unrestricted_df[['Gender']].replace({'M':0, 'F':1})]).rename({f'{rms}_{ses_string}': 'mean_framewise_displacement'}, 
-                                       axis='columns')
+                                       axis='columns').infer_objects(copy=False)
 
     return(df) 
 
@@ -112,12 +112,45 @@ def unpack_qcfc(results_obj):
     pval_list = []
     sig_corr_list = [] 
     _ =[pval_list.append(i['pvalue']) for i in results_obj]
-    _ =[ sig_corr_list.append(i['correlation']) for i in results_obj if i['pvalue'] <.05 ]
+    _ =[ sig_corr_list.append(i['correlation']) for i in results_obj if i['pvalue'] <.05]
     return(pval_list, sig_corr_list) 
 
 
-# -
-
-lasso_df = create_df(lasso_dict, ses_string='ses-1_run-2')
+# +
+lasso_df = create_df(lasso_dict, ses_string='ses-1_run-1')
 lasso_results = wrap_qcfc(lasso_df) 
 lasso_pval, lasso_corr_list = unpack_qcfc(lasso_results)
+
+plt.hist(lasso_corr_list) 
+
+# +
+uoi_df = create_df(uoi_dict, ses_string='ses-1_run-2')
+uoi_results = wrap_qcfc(uoi_df) 
+uoi_pval, uoi_corr_list = unpack_qcfc(uoi_results)
+
+plt.hist(uoi_corr_list) 
+# -
+
+pearson_df = create_df(pearson_dict, ses_string='ses-1_run-2')
+pearson_results = wrap_qcfc(pearson_df) 
+pearson_pval, pearson_corr_list = unpack_qcfc(pearson_results)
+plt.hist(pearson_corr_list) 
+
+color=[,]
+
+# ?plt.savefig
+
+plt.figure(figsize=[6,3])
+plt.hist(uoi_corr_list, alpha=.75, label=f'UoI ({len(uoi_corr_list) })', color='#00313C') 
+plt.hist(lasso_corr_list, alpha=.75, label = f'LASSO ({len(lasso_corr_list) }) ', color='#007681') 
+plt.hist(pearson_corr_list, alpha=.75, label = f'Pearson ({len(pearson_corr_list) })', color='#B1B3B3')
+plt.legend() 
+plt.savefig('qcfc.png',  bbox_inches="tight", )
+
+len(pearson_corr_list) 
+
+len(uoi_corr_list) 
+
+len(lasso_corr_list) 
+
+

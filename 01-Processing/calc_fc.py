@@ -52,7 +52,7 @@ parser.add_argument('--atlas_name', default='schaefer')
 parser.add_argument('--n_rois', default=100) #default for hcp
 parser.add_argument('--n_trs', default=1200) #default for hcp
 parser.add_argument('--n_folds', default=5) 
-parser.add_argument('--model', default='lasso-bic') 
+parser.add_argument('--model', default='uoi-lasso') 
 parser.add_argument('--fc_data_path', 
                     default='/pscratch/sd/m/mphagen/hcp-functional-connectivity') 
 
@@ -76,7 +76,7 @@ print(args)
 
 # +
 
-ts_files = glob(op.join(fc_data_path, 'derivatives', f'fc_{atlas_name}-{n_rois}_timeseries', f'{subject_id}', '*.csv'))
+ts_files = glob(op.join(fc_data_path, 'derivatives', f'timeseries_{atlas_name}-{n_rois}', f'sub-{subject_id}', '*', '*.csv'))
 results_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_{atlas_name}-{n_rois}', f'sub-{subject_id}', model_str)
 
 os.makedirs(results_path, exist_ok=True)

@@ -3,3 +3,9 @@ Sylvia_code/
 *log*
 results/*
 Data/
+.*
+renv/
+*.csv
+*.txt
+*.png
+*.pdf
