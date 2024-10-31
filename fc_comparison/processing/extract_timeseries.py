@@ -18,24 +18,21 @@
 # +
 import numpy as np
 
-import nilearn
-from nilearn import datasets
-from nilearn import image as nimg
-from nilearn import plotting
-from nilearn.plotting import plot_carpet
-from nilearn.input_data import NiftiMasker, NiftiLabelsMasker
-
-import nibabel as nib
-
 import argparse
 
-import datalad.api as dl
+import nilearn 
+from nilearn import datasets 
+from nilearn.maskers import NiftiLabelsMasker
 
 from glob import glob
 
 import sys
 import os 
 import os.path as op
+
+sys.path.append(os.path.dirname('../../fc_comparison'))
+
+from fc_comparison.main import parcellate_data
 # -
 
 
@@ -47,7 +44,7 @@ os.environ["PATH"] = "/global/homes/m/mphagen/miniconda3/envs/fc_w_datalad/bin:"
 args = argparse.Namespace(verbose=False, verbose_1=False)
 
 parser = argparse.ArgumentParser("extract_timeseries.py")
-parser.add_argument('--subject_id',  default='117728') 
+parser.add_argument('--subject_id',  default='101107') 
 parser.add_argument('--atlas_name', default='schaefer')
 parser.add_argument('--n_rois', default=100)
 parser.add_argument('--resolution_mm', default=1) #I don't remember where I got this #
@@ -69,26 +66,22 @@ yeo_networks = args.yeo_networks
 print(args)
 # +
 fc_data_path = '/pscratch/sd/m/mphagen/hcp-functional-connectivity'
-results_path = op.join(fc_data_path, 'derivatives', 
+results_path = op.join(fc_data_path, 
+                       'derivatives', 
                        'parcellated-timeseries', 
-                       f'sub-{subject_id}')
+                        f'sub-{subject_id}', 
+                        'func')
 os.makedirs(results_path, exist_ok=True)
 
 rest_scans = glob(op.join(fc_data_path, 
-                          subject_id, 'MNINonLinear/Results/rfMRI*', 
+                          subject_id, 
+                          'MNINonLinear/Results/rfMRI*', 
                           '*clean.nii.gz'))
 
 print(f"Found {len(rest_scans)} rest scans for subject {subject_id}") 
 # -
 
-#create pseudo-bids naming mapping dict
-#assuming that the RL was always run before LR
-bids_dict = {
-    'rfMRI_REST1_RL': 'ses-1_run-1',
-    'rfMRI_REST2_RL': 'ses-2_run-1',
-    'rfMRI_REST2_LR': 'ses-2_run-2',
-    'rfMRI_REST1_LR': 'ses-1_run-2' 
-}
+results_path
 
 # +
 #add elif here for other atlas choice
@@ -99,33 +92,17 @@ if atlas_name == 'schaefer':
     atlas = schaefer['maps']
 
 masker = NiftiLabelsMasker(labels_img=atlas, standardize='zscore_sample')
-
-
 # -
 
-def parcellate_data(file): 
-    
-    try: 
-        ses_string = bids_dict[file.split('/')[-2]]
-    except KeyError: 
-        return
-        
-    dl.get(file, dataset='/pscratch/sd/m/mphagen/hcp-functional-connectivity')
-    
-    data = nib.load(file)
-    
-    time_series = masker.fit_transform(data)
-    
-    dl.drop(file, dataset='/pscratch/sd/m/mphagen/hcp-functional-connectivity')
-    
-    os.makedirs(op.join(results_path, ses_string), exist_ok=True)
-    time_series.tofile(op.join(results_path, 'func', ses_string, f'{atlas_name}-{n_rois}'
-                               f'sub-{subject_id}_ses-{ses_string}_task-Rest_atlas-{atlas_name}{n_rois}_timeseries.tsv'), 
-                        sep = '/t')
-    return time_series
-
+dataset_path = '/pscratch/sd/m/mphagen/hcp-functional-connectivity'
 
 for file in rest_scans: 
-    ts = parcellate_data(file)  
-
-
+    ts, ses_string = parcellate_data(file, dataset_path, 
+                         masker)  
+    
+     
+    ts.tofile(op.join(results_path, 
+                       ses_string, 
+                       f'{atlas_name}-{n_rois}'
+                       f'sub-{subject_id}_ses-{ses_string}_task-Rest_atlas-{atlas_name}{n_rois}_timeseries.tsv'), 
+                        sep = '/t')
