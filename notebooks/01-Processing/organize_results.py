@@ -25,12 +25,19 @@ import matplotlib.pyplot as plt
 fc_data_path = '/pscratch/sd/m/mphagen/hcp-functional-connectivity'
 
 
-pearson_results_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_schaefer*', '*', '*correlation*')
-lasso_results_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_schaefer*', '*', '*fc-lasso*model*')
-uoi_results_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_schaefer*', '*', '*uoi-*model*')
+pearson_results_path = op.join(fc_data_path, 'derivatives', 
+                               f'fc-matrices_schaefer*', '*',
+                               '*correlation*')
+lasso_results_path = op.join(fc_data_path, 'derivatives', 
+                             f'fc-matrices_schaefer*', '*', 
+                             '*fc-lasso*model*')
+uoi_results_path = op.join(fc_data_path, 'derivatives', 
+                           f'fc-matrices_schaefer*', '*', 
+                           '*uoi-*model*')
 # -
 
-uoi_r2_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_schaefer*', '*', '*uoi-*r2*')
+uoi_r2_path = op.join(fc_data_path, 'derivatives',
+                      f'fc-matrices_schaefer*', '*', '*uoi-*r2*')
 
 pearson_results_files = glob(pearson_results_path) 
 lasso_result_files = glob(lasso_results_path)

@@ -14,7 +14,7 @@
 # ---
 
 # +
-#combine timeseries for ses
+#combine timeseries for runs within the same session.
 # -
 
 from glob import glob

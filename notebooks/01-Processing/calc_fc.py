@@ -47,7 +47,7 @@ import pickle
 args = argparse.Namespace()
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--subject_id',default='205220') 
+parser.add_argument('--subject_id',default='117728') 
 parser.add_argument('--atlas_name', default='schaefer')
 parser.add_argument('--n_rois', default=100) #default for hcp
 parser.add_argument('--n_trs', default=1200) #default for hcp
@@ -75,10 +75,21 @@ fc_data_path = args.fc_data_path
 print(args)
 
 # +
+#this is brittle - but adhering to BEP-17 will make it les brittle
+ts_files = glob(op.join(fc_data_path, 
+                        'derivatives', 
+                        'parecellated-timeseries',
+                        ''
+                        f'sub-{subject_id}',
+                        '*', 
+                        '*.csv'))
 
-ts_files = glob(op.join(fc_data_path, 'derivatives', f'timeseries_{atlas_name}-{n_rois}', f'sub-{subject_id}', '*', '*.csv'))
-results_path = op.join(fc_data_path, 'derivatives', f'fc-matrices_{atlas_name}-{n_rois}', f'sub-{subject_id}', model_str)
-
+results_path = op.join(fc_data_path, 
+                       'derivatives',
+                       'connectivity-matrices',
+                       model_str,
+                       f'sub-{subject_id}')
+                       
 os.makedirs(results_path, exist_ok=True)
 
 print(f"Found {len(ts_files)} rest scans for subject {subject_id}.") 
@@ -86,14 +97,12 @@ print(f"Found {len(ts_files)} rest scans for subject {subject_id}.")
 print(f"Saving results to {results_path}.")
 # -
 
-random_state =1 
+random_state = 1 
 
 # +
 if model_str == 'uoi-lasso': 
     uoi_lasso = UoI_Lasso(estimation_score="BIC")
-
     comm = MPI.COMM_WORLD
-    
     uoi_lasso.copy_X = True
     uoi_lasso.estimation_target = None
     uoi_lasso.logger = None
@@ -156,7 +165,8 @@ def calc_fc(train_ts, test_ts, n_rois, model, **kwargs):
         model.fit(X=X_train, y=y_train)
 
         fc_mat[target_idx,:] = np.insert(model.coef_, target_idx, 0) 
-        test_rsq, train_rsq = eval_metrics(X_train, y_train, X_test, y_test, model)
+        test_rsq, train_rsq = eval_metrics(X_train, y_train, 
+                                           X_test, y_test, model)
 
         inner_rsq_dict['test'].append(test_rsq)
         inner_rsq_dict['train'].append(train_rsq)

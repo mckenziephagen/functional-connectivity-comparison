@@ -13,6 +13,8 @@
 #     name: env
 # ---
 
+# This script takes in pre-processed niftis, and outputs a CSV with the timeseries by parcel. 
+
 # +
 import numpy as np
 
@@ -67,12 +69,14 @@ yeo_networks = args.yeo_networks
 print(args)
 # +
 fc_data_path = '/pscratch/sd/m/mphagen/hcp-functional-connectivity'
-results_path = op.join(fc_data_path, 'derivatives', f'fc_{atlas_name}-{n_rois}_timeseries', 
-                        f'sub-{subject_id}')
+results_path = op.join(fc_data_path, 'derivatives', 
+                       'parcellated-timeseries', 
+                       f'sub-{subject_id}')
 os.makedirs(results_path, exist_ok=True)
 
 rest_scans = glob(op.join(fc_data_path, 
-                         subject_id, 'MNINonLinear/Results/rfMRI*', '*clean.nii.gz'))
+                          subject_id, 'MNINonLinear/Results/rfMRI*', 
+                          '*clean.nii.gz'))
 
 print(f"Found {len(rest_scans)} rest scans for subject {subject_id}") 
 # -
@@ -89,7 +93,9 @@ bids_dict = {
 # +
 #add elif here for other atlas choice
 if atlas_name == 'schaefer': 
-    schaefer = datasets.fetch_atlas_schaefer_2018(n_rois,yeo_networks,resolution_mm)
+    schaefer = datasets.fetch_atlas_schaefer_2018(n_rois,
+                                                  yeo_networks,
+                                                  resolution_mm)
     atlas = schaefer['maps']
 
 masker = NiftiLabelsMasker(labels_img=atlas, standardize='zscore_sample')
@@ -113,32 +119,13 @@ def parcellate_data(file):
     dl.drop(file, dataset='/pscratch/sd/m/mphagen/hcp-functional-connectivity')
     
     os.makedirs(op.join(results_path, ses_string), exist_ok=True)
-    time_series.tofile(op.join(results_path, ses_string, 
-                               f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_timeseries.csv'), 
-                        sep = ',')
+    time_series.tofile(op.join(results_path, 'func', ses_string, f'{atlas_name}-{n_rois}'
+                               f'sub-{subject_id}_ses-{ses_string}_task-Rest_atlas-{atlas_name}{n_rois}_timeseries.tsv'), 
+                        sep = '/t')
     return time_series
 
 
 for file in rest_scans: 
-    parcellate_data(file)  
-
-rest_scans[1]
-
-parc = parcellate_data(rest_scans[1])
-
-    dl.get(rest_scans[1], dataset='/pscratch/sd/m/mphagen/hcp-functional-connectivity')
-
-
-data = nib.load(rest_scans[1])
-
-
-print(data.header)
-
-dir(data)
-
-dataset = datasets.fetch_atlas_harvard_oxford("cort-maxprob-thr25-2mm")
-
-
-dir(dataset)
+    ts = parcellate_data(file)  
 
 
