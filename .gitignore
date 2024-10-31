@@ -9,3 +9,4 @@ renv/
 *.txt
 *.png
 *.pdf
+fmriprep-denoise-benchmark
