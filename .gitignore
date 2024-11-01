@@ -2,7 +2,6 @@
 Sylvia_code/
 *log*
 results/*
-Data/
 .*
 renv/
 *.csv
@@ -10,3 +9,5 @@ renv/
 *.png
 *.pdf
 fmriprep-denoise-benchmark
+
+data/hcp_data/*
