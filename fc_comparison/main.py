@@ -1,3 +1,5 @@
+__all__ = ['parcellate_data']
+
 import datalad.api as dl
 import nibabel as nib
 
@@ -18,7 +20,17 @@ bids_dict = {
     'rfMRI_REST1_LR': 'ses-1_run-2' 
 }
 
-def parcellate_data(file, dataset_path, masker): 
+def parcellate_data(file, dataset_path): 
+    
+    """
+    Takes a minimally processed HCP fMRI scan and saves a parcellated 
+    time series as a csv.
+    
+    file: /path/to/file.nii.gz
+    dataset_path: for datalad dataset parameter
+    masker: NiftiMasker object initalized with atlas and  
+    
+    """
     
     try: 
         ses_string = bids_dict[file.split('/')[-2]]
