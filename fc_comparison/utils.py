@@ -11,6 +11,17 @@ from sklearn.metrics import r2_score
 
 
 def calc_fc(train_ts, test_ts, n_rois, model, **kwargs): 
+    
+    """Calculate a model based functional connectivity matrix. 
+
+    
+    train_ts: training timeseries
+    test_ts: testing timeseries
+    n_rois: number of rois in parcellation
+    model: model object
+    
+    
+    """
     assert train_ts.shape[1] == n_rois == test_ts.shape[1]
     fc_mat = np.zeros((n_rois,n_rois))
     
@@ -36,11 +47,13 @@ def calc_fc(train_ts, test_ts, n_rois, model, **kwargs):
         inner_rsq_dict['test'].append(test_rsq)
         inner_rsq_dict['train'].append(train_rsq)
 
-      #  print(test_rsq)
-
     return(fc_mat, inner_rsq_dict, model)
 
 def eval_metrics(X_train, y_train, X_test, y_test, model):
+    
+    """Calculates R2 scores for FC models. 
+    
+    """
     
     test_rsq = r2_score(y_test, model.predict(X_test))
     
@@ -49,6 +62,10 @@ def eval_metrics(X_train, y_train, X_test, y_test, model):
     return(test_rsq, train_rsq)
 
 def init_model(model_str): 
+    
+    """Initialize model object for FC calculations. 
+    
+    """
     if model_str == 'uoi-lasso': 
         uoi_lasso = UoI_Lasso(estimation_score="BIC")
         comm = MPI.COMM_WORLD
