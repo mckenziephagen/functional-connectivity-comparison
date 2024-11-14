@@ -30,7 +30,7 @@ import sys
 import os 
 import os.path as op
 
-sys.path.append(os.path.dirname('../../fc_comparison'))
+sys.path.append(os.path.dirname('../fc_comparison'))
 
 from fc_comparison.main import parcellate_data
 # -
