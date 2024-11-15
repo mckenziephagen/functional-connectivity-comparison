@@ -10,4 +10,7 @@ renv/
 *.pdf
 fmriprep-denoise-benchmark
 
+*ruse* 
+
+
 data/hcp_data/*
