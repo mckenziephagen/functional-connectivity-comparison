@@ -17,7 +17,7 @@ import sys
 import os
 
 #work around until I install fc_comparison as an actual package
-sys.path.append(os.path.dirname('../../fc_comparison'))
+sys.path.append(os.path.dirname('../fc_comparison'))
 
 # +
 import time
@@ -37,22 +37,22 @@ import os.path as op
 
 from glob import glob
 
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, GroupKFold
 from sklearn.metrics import r2_score
 from sklearn.preprocessing import StandardScaler
 
 import pickle
 
-from fc_comparison.utils import init_model
+from fc_comparison.models import init_model, calc_fc
 
 # +
 args = argparse.Namespace()
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--subject_id',default='117728') 
+parser.add_argument('--subject_id',default='101107') 
 parser.add_argument('--atlas_name', default='schaefer')
-parser.add_argument('--n_rois', default=100) #default for hcp
-parser.add_argument('--n_trs', default=1200) #default for hcp
+parser.add_argument('--n_rois', default=100, type=int) #default for hcp; 
+parser.add_argument('--n_trs', default=1200, type=int) #default for hcp;
 parser.add_argument('--n_folds', default=5) 
 parser.add_argument('--model', default='uoi-lasso') 
 parser.add_argument('--fc_data_path', 
@@ -78,10 +78,11 @@ print(args)
 #this is brittle - but adhering to BEP-17 will make it les brittle
 ts_files = glob(op.join(fc_data_path, 
                         'derivatives', 
-                        'parecellated-timeseries',
+                        'parcellated-timeseries',
                         f'sub-{subject_id}',
-                        '*', 
-                        '*.csv'))
+                        '*',
+                        '*',
+                        '*.tsv'))
 
 results_path = op.join(fc_data_path, 
                        'derivatives',
@@ -107,23 +108,27 @@ for file in ts_files:
     ses_string = file.split('/')[-2]
     print(ses_string)
     if  'run-combined' in ses_string:        
-        time_series = np.loadtxt(file, delimiter=',').reshape(2400, 100)
+        time_series = np.loadtxt(file, delimiter=',').reshape(-1, 100) #TODO: maybe change hard coding
+            #use -1 to infer if I know how many regions but not how many trs 
     
     else: 
-        time_series = np.loadtxt(file, delimiter=',').reshape(n_trs, n_rois)
+        time_series = np.loadtxt(file, delimiter='\t').reshape(n_trs, n_rois)
 
     if model_str in ["lasso-cv", "uoi-lasso", "enet", "lasso-bic"] :
         print(f"Calculating {model_str} FC for {ses_string}")
-
-        kfolds = KFold(
-            n_splits=n_folds,
-            shuffle=True,
-            random_state=random_state)
+        
+        group = np.array([np.full(int(n_trs/n_folds), ii) for ii in range(1,n_folds+1)]).reshape(n_trs)
+        
+        group_kfold = GroupKFold(n_splits=5)
 
         fc_mats = {}
         rsq_dict = {}
 
-        for fold_idx, (train_idx, test_idx) in enumerate( kfolds.split(X=time_series) ): 
+        for fold_idx, (train_idx, test_idx) in enumerate( group_kfold.split(X=time_series, groups=group) ): 
+            
+            print(f"Fold {fold_idx}:")
+            print(f"  Train: index={train_idx}, group={group[train_idx]}")
+            print(f"  Test:  index={test_idx}, group={group[test_idx]}")
             print(fold_idx)
 
             train_ts = time_series[train_idx, :]
@@ -141,10 +146,12 @@ for file in ts_files:
 
             print(time.time() - start_time, ' seconds') 
 
+            #TODO: helper function to manage filenames 
         mat_file = f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_{ses_string}_fc-{model_str}_model.pkl'
         with open(op.join(results_path,mat_file), 'wb') as f:
             pickle.dump(fc_mats, f)
-        with open(op.join(results_path, f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_{ses_string}_fc-{model_str}_r2.pkl'), 
+        with open(op.join(results_path, 
+                          f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_{ses_string}_fc-{model_str}_r2.pkl'), 
                   'wb') as f: 
             pickle.dump(rsq_dict, f)
             
