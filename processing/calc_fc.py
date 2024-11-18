@@ -13,8 +13,13 @@
 #     name: fc
 # ---
 
+# +
 import sys
 import os
+
+from numpy.matlib import repmat
+
+# -
 
 #work around until I install fc_comparison as an actual package
 sys.path.append(os.path.dirname('../fc_comparison'))
@@ -43,7 +48,7 @@ from sklearn.preprocessing import StandardScaler
 
 import pickle
 
-from fc_comparison.models import init_model, calc_fc
+from fc_comparison.models import init_model, run_model
 
 # +
 args = argparse.Namespace()
@@ -55,8 +60,11 @@ parser.add_argument('--n_rois', default=100, type=int) #default for hcp;
 parser.add_argument('--n_trs', default=1200, type=int) #default for hcp;
 parser.add_argument('--n_folds', default=5) 
 parser.add_argument('--model', default='uoi-lasso') 
+parser.add_argument('--cv', default='blocks') 
+
 parser.add_argument('--fc_data_path', 
                     default='/pscratch/sd/m/mphagen/hcp-functional-connectivity') 
+parser.add_argument('--max_iter', default=5000) #testing - default for uoi is 1000
 
 #hack argparse to be jupyter friendly AND cmdline compatible
 try: 
@@ -67,11 +75,14 @@ except KeyError:
     
 subject_id = args.subject_id
 atlas_name = args.atlas_name
-n_rois = int(args.n_rois)
-n_trs = int(args.n_trs)
+n_rois = args.n_rois
+n_trs = args.n_trs
 n_folds = args.n_folds
 model_str = args.model
+cv = args.cv
 fc_data_path = args.fc_data_path
+
+max_iter = 5000
 print(args)
 
 # +
@@ -92,6 +103,8 @@ results_path = op.join(fc_data_path,
                        
 os.makedirs(results_path, exist_ok=True)
 
+assert len(ts_files) > 0 
+
 print(f"Found {len(ts_files)} rest scans for subject {subject_id}.") 
 
 print(f"Saving results to {results_path}.")
@@ -99,14 +112,33 @@ print(f"Saving results to {results_path}.")
 
 random_state = 1 
 
-model = init_model(model_str)
+model = init_model(model_str, max_iter)
 
 print(model)
 
-#iterate over each scan for a subject
-for file in ts_files:   
-    ses_string = file.split('/')[-2]
-    print(ses_string)
+
+def split_kfold(cv): 
+    if cv == 'random': 
+        
+        kfold = KFold(n_splits=n_folds,
+                      shuffle=True,
+                      random_state=random_state)
+        
+        splits = kfolds.split(X=time_series)
+        
+    if cv == 'blocks':
+        group =  repmat(np.arange(1, n_folds+1), 
+                        int(n_trs/n_folds), 1).T.ravel()
+        
+        kfold = GroupKFold(n_splits=n_folds, 
+                           random_state=random_state)
+        
+        splits = kfold.split(X=time_series, groups=group) 
+        
+    return splits
+
+
+def read_ts(file, ses_string, n_trs, n_rois):
     if  'run-combined' in ses_string:        
         time_series = np.loadtxt(file, delimiter=',').reshape(-1, 100) #TODO: maybe change hard coding
             #use -1 to infer if I know how many regions but not how many trs 
@@ -114,22 +146,26 @@ for file in ts_files:
     else: 
         time_series = np.loadtxt(file, delimiter='\t').reshape(n_trs, n_rois)
 
+        
+    return(time_series)
+
+#iterate over each scan for a subject
+for file in ts_files:   
+    ses_string = file.split('/')[-2]
+    print(ses_string)
+    
+    
     if model_str in ["lasso-cv", "uoi-lasso", "enet", "lasso-bic"] :
         print(f"Calculating {model_str} FC for {ses_string}")
         
-        group = np.array([np.full(int(n_trs/n_folds), ii) for ii in range(1,n_folds+1)]).reshape(n_trs)
+        time_series = read_ts(file, ses_string, n_trs, n_rois)
         
-        group_kfold = GroupKFold(n_splits=5)
+        splits = split_kfold(cv)
 
         fc_mats = {}
         rsq_dict = {}
 
-        for fold_idx, (train_idx, test_idx) in enumerate( group_kfold.split(X=time_series, groups=group) ): 
-            
-            print(f"Fold {fold_idx}:")
-            print(f"  Train: index={train_idx}, group={group[train_idx]}")
-            print(f"  Test:  index={test_idx}, group={group[test_idx]}")
-            print(fold_idx)
+        for fold_idx, (train_idx, test_idx) in enumerate( splits ): 
 
             train_ts = time_series[train_idx, :]
             test_ts = time_series[test_idx, :]
@@ -139,14 +175,14 @@ for file in ts_files:
             scaler.transform(test_ts)
 
             start_time = time.time()
-            fc_mats[fold_idx], rsq_dict[fold_idx], tst_model = calc_fc(train_ts, 
+            fc_mats[fold_idx], rsq_dict[fold_idx], tst_model = run_model(train_ts, 
                                                                        test_ts, 
                                                                        n_rois, 
                                                                        model=model)
 
             print(time.time() - start_time, ' seconds') 
 
-            #TODO: helper function to manage filenames 
+        #TODO: helper function to manage filenames 
         mat_file = f'sub-{subject_id}_{atlas_name}-{n_rois}_task-Rest_{ses_string}_fc-{model_str}_model.pkl'
         with open(op.join(results_path,mat_file), 'wb') as f:
             pickle.dump(fc_mats, f)
@@ -165,3 +201,11 @@ for file in ts_files:
 
         with open(op.join(results_path,mat_file), 'wb') as f:
             pickle.dump(corr_mat, f) 
+
+
+
+
+
+
+
+
