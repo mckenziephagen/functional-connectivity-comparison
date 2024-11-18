@@ -10,8 +10,7 @@ import numpy as np
 from sklearn.metrics import r2_score
 
 
-def calc_fc(train_ts, test_ts, n_rois, model, **kwargs): 
-    
+def run_model(train_ts, test_ts, n_rois, model, **kwargs): 
     """Calculate a model based functional connectivity matrix. 
 
     
@@ -49,20 +48,19 @@ def calc_fc(train_ts, test_ts, n_rois, model, **kwargs):
 
     return(fc_mat, inner_rsq_dict, model)
 
+
 def eval_metrics(X_train, y_train, X_test, y_test, model):
-    
     """Calculates R2 scores for FC models. 
     
     """
     
     test_rsq = r2_score(y_test, model.predict(X_test))
-    
     train_rsq = r2_score(y_train, model.predict(X_train))
 
     return(test_rsq, train_rsq)
 
-def init_model(model_str): 
-    
+
+def init_model(model_str, max_iter): 
     """Initialize model object for FC calculations. 
     
     """
@@ -76,6 +74,7 @@ def init_model(model_str):
         uoi_lasso.comm = comm
         uoi_lasso.random_state = 1
         uoi_lasso.n_lambdas = 100
+        max_iter=max_iter
 
         model = uoi_lasso
 
@@ -83,14 +82,14 @@ def init_model(model_str):
         lasso = LassoCV(fit_intercept = True,
                         cv = 5, 
                         n_jobs=-1, 
-                        max_iter=2000)
+                        max_iter=max_iter)
 
         model = lasso
 
     elif model_str == 'lasso-bic': 
         lasso = LassoLarsIC(criterion='bic',
                             fit_intercept = True,
-                            max_iter=2000)
+                            max_iter=max_iter)
 
         model = lasso
 
@@ -98,7 +97,7 @@ def init_model(model_str):
         enet = ElasticNetCV(fit_intercept = True,
                             cv = 5, 
                             n_jobs=-1, 
-                            max_iter=2000)
+                            max_iter=max_iter)
         model = enet
 
     elif model_str in ['correlation', 'tangent']: 
