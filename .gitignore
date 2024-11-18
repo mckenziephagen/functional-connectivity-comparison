@@ -12,5 +12,5 @@ fmriprep-denoise-benchmark
 
 *ruse* 
 
-
+*pycache* 
 data/hcp_data/*
