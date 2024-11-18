@@ -13,14 +13,14 @@ from nilearn.input_data import NiftiMasker, NiftiLabelsMasker
 
 #create pseudo-bids naming mapping dict
 #assuming that the RL was always run before LR
-bids_dict = {
+HCP_RUN_MAPPING = {
     'rfMRI_REST1_RL': 'ses-1_run-1',
     'rfMRI_REST2_RL': 'ses-2_run-1',
     'rfMRI_REST2_LR': 'ses-2_run-2',
     'rfMRI_REST1_LR': 'ses-1_run-2' 
 }
 
-def parcellate_data(file, dataset_path): 
+def parcellate_data(file, dataset_path, masker): 
     
     """
     Takes a minimally processed HCP fMRI scan and saves a parcellated 
@@ -33,7 +33,7 @@ def parcellate_data(file, dataset_path):
     """
     
     try: 
-        ses_string = bids_dict[file.split('/')[-2]]
+        ses_string = HCP_RUN_MAPPING[file.split('/')[-2]]
     except KeyError: 
         return
         
@@ -47,4 +47,6 @@ def parcellate_data(file, dataset_path):
     
     
     return time_series, ses_string
+
+
    
