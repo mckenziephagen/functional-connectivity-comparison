@@ -125,8 +125,8 @@ if atlas_name == 'schaefer':
     atlas = schaefer['maps']
 
 masker = NiftiLabelsMasker(labels_img=atlas, standardize='zscore_sample')
+# -
 
-# +
 for file in rest_scans: 
     ts, ses_string = parcellate_data(file, path_dict['dataset_path'], masker)  
     
@@ -135,16 +135,5 @@ for file in rest_scans:
                         ses_string, 
                         atlas_name,
                         n_rois)
-     
-#     os.makedirs(op.join(results_path, 
-#                        ses_string, 
-#                        f'{atlas_name}-{n_rois}'), 
-#                 exist_ok=True)
-                
-#     ts.tofile(op.join(results_path, 
-#                        ses_string, 
-#                        f'{atlas_name}-{n_rois}',
-#                        f'sub-{subject_id}_ses-{ses_string}_task-Rest_atlas-{atlas_name}{n_rois}_timeseries.tsv'), 
-#                         sep = '\t')
     
     #double check BIDS nroi (does this need to be desc instead?
