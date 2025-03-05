@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.15.2
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: fc_w_datalad
 #     language: python
@@ -112,9 +112,6 @@ rest_scans = glob(op.join(path_dict['dataset_path'],
 assert len(rest_scans) > 0 
 
 print(f"Found {len(rest_scans)} rest scans for subject {subject_id}") 
-# -
-
-path_dict['results_dir']
 
 # +
 #add elif here for other atlas choice
@@ -137,3 +134,13 @@ for file in rest_scans:
                         n_rois)
     
     #double check BIDS nroi (does this need to be desc instead?
+
+ts[:,0]
+
+import matplotlib.pyplot as plt
+
+plt.plot(ts[150:700,20], linewidth=2.5)
+plt.axis('off')
+plt.savefig('timeseries4.png', transparent=True) 
+
+

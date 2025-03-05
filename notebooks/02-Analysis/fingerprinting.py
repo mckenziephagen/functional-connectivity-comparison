@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.15.2
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: FC
 #     language: python
@@ -21,13 +21,13 @@ import pandas as pd
 
 # +
 date_string='2023-11-07'
-with open(f'../results/{date_string}_lasso_dict.pkl', 'rb') as l:
+with open(f'../../results/{date_string}_lasso_dict.pkl', 'rb') as l:
         lasso_dict = pickle.load(l)
         
-with open(f'../results/{date_string}_uoi_dict.pkl', 'rb') as u:
+with open(f'../../results/{date_string}_uoi_dict.pkl', 'rb') as u:
         uoi_dict = pickle.load(u)
         
-with open(f'../results/{date_string}_pearson_dict.pkl', 'rb') as f:
+with open(f'../../results/{date_string}_pearson_dict.pkl', 'rb') as f:
         pearson_dict = pickle.load(f)
 # -
 
@@ -152,27 +152,32 @@ plot_df.index
 
 
 # +
-fig, axes = plt.subplots(ncols=2,figsize=[6,3])
+fig, axes = plt.subplots(ncols=2,figsize=[10,4])
 
 
-axes[0].bar(models, accuracies, color=['#B1B3B3','#007681','#00313C'])
-axes[0].set_ylim(.5,1)
-axes[0].set_title('"Fingerprinting" Accuracy') 
+axes[1].bar(models, accuracies, color=['#B1B3B3','#007681','#00313C'])
+axes[1].set_ylim(.5,1)
+axes[1].set_title('"Fingerprinting" Accuracy') 
 # plt.savefig('fingerprinting.png', bbox_inches="tight") 
+axes[1].xaxis.set_tick_params(labelsize=10)
+axes[1].yaxis.set_tick_params(labelsize=10)
 
-axes[1].set_title('Reliability Between Scans') 
-axes[1].set_ylim(.1,.6)
+axes[0].set_title('Reliability Between Scans') 
+axes[0].set_ylim(.1,.6)
 
-axes[1].bar(plot_df.index, plot_df['lambda'] ,
+axes[0].bar(plot_df.index, plot_df['lambda'] ,
            color=['#B1B3B3','#007681','#00313C'])
 
-plt.errorbar( x=plot_df.index, y=plot_df['lambda'], 
+axes[0].xaxis.set_tick_params(labelsize=10)
+axes[0].yaxis.set_tick_params(labelsize=10)
+axes[1].axes.set_ylabel('Accuracy', fontsize=14)
+axes[0].axes.set_ylabel('I2C2 Reliability', fontsize=14) 
+
+axes[0].errorbar( x=plot_df.index, y=plot_df['lambda'], 
              yerr=err , color='black', linestyle='', 
-            elinewidth=1, barsabove=True, capsize=3)
+            elinewidth=2, barsabove=True, capsize=3)
 
 plt.savefig('fingerprinting_reliability.png', bbox_inches="tight")
 # -
-
-
 
 

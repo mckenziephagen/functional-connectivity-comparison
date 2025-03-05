@@ -51,7 +51,6 @@ def run_model(train_ts, test_ts, n_rois, model, **kwargs):
 
 def eval_metrics(X_train, y_train, X_test, y_test, model):
     """Calculates R2 scores for FC models. 
-    
     """
     
     test_rsq = r2_score(y_test, model.predict(X_test))
@@ -60,13 +59,17 @@ def eval_metrics(X_train, y_train, X_test, y_test, model):
     return(test_rsq, train_rsq)
 
 
-def init_model(model_str, max_iter): 
+def init_model(model_str, max_iter, random_state, stability_selection=16, selection_frac=.7): 
     """Initialize model object for FC calculations. 
     
     """
     if model_str == 'uoi-lasso': 
+        
         uoi_lasso = UoI_Lasso(estimation_score="BIC")
         comm = MPI.COMM_WORLD
+
+        uoi_lasso.selection_frac = selection_frac
+        uoi_lasso.stability_selection = stability_selection
         uoi_lasso.copy_X = True
         uoi_lasso.estimation_target = None
         uoi_lasso.logger = None
@@ -74,7 +77,8 @@ def init_model(model_str, max_iter):
         uoi_lasso.comm = comm
         uoi_lasso.random_state = 1
         uoi_lasso.n_lambdas = 100
-        max_iter=max_iter
+        uoi_lasso.max_iter=max_iter
+        uoi_lasso.random_state=random_state
 
         model = uoi_lasso
 
@@ -82,7 +86,8 @@ def init_model(model_str, max_iter):
         lasso = LassoCV(fit_intercept = True,
                         cv = 5, 
                         n_jobs=-1, 
-                        max_iter=max_iter)
+                        max_iter=max_iter,
+                       random_state=random_state)
 
         model = lasso
 

@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.15.2
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: FC
 #     language: python
@@ -101,9 +101,9 @@ def create_df(mat_dict, ses_string, rms='absolute'):
 
 # +
 def wrap_qcfc(df): 
-    covarates = df[['Gender']]
+    #covarates = df[['Gender']]
     movement = df[['mean_framewise_displacement']]
-    connectomes = df.drop(['mean_framewise_displacement', 'Gender'], axis=1)
+    connectomes = df.drop(['mean_framewise_displacement'], axis=1)
 
     qcfc_results = qcfc(movement=movement, connectomes=connectomes, covarates=covarates)
     return(qcfc_results) 
